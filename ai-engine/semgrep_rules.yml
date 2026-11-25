@@ -1,0 +1,111 @@
+
+rules:
+  
+  
+  
+  - id: hardcoded-password
+    languages:
+      - python
+      - javascript
+    severity: ERROR
+    message: "Possible hardcoded password or secret detected."
+    patterns:
+      - pattern-either:
+          - pattern: $KEY = "$VALUE"
+          - pattern: $KEY = '$VALUE'
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: '(?i).*(password|passwd|secret|api[_-]?key|token|access[_-]?key[_-]?id|access[_-]?key|stripe[_-]?secret|jwt[_-]?token|client[_-]?secret|credential|private[_-]?key).*'
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: '.{4,}'
+
+
+
+
+  - id: python-shell-injection
+    languages:
+      - python
+    severity: ERROR
+    message: "Potential command injection: shell=True is dangerous with untrusted input."
+    pattern: subprocess.$FUNC(..., shell=True)
+
+  - id: javascript-dangerous-eval
+    languages:
+      - javascript
+    severity: ERROR
+    message: "Use of eval() can introduce code injection vulnerabilities."
+    pattern: eval($INPUT)
+
+  - id: javascript-unsafe-innerhtml
+    languages:
+      - javascript
+    severity: WARNING
+    message: "Assigning untrusted content to innerHTML may cause XSS."
+    pattern: $ELEMENT.innerHTML = $INPUT
+
+  - id: python-sql-injection
+    languages:
+      - python
+    severity: ERROR
+    message: "Potential SQL injection: avoid building SQL queries using untrusted input."
+    pattern-either:
+      - pattern: $CURSOR.execute(f"...{$INPUT}...")
+      - pattern: $CURSOR.execute("..." % $INPUT)
+      - pattern: $CURSOR.execute("...".format(...))
+
+  
+  - id: javascript-sql-injection
+    languages:
+      - javascript
+    severity: ERROR
+    message: "Potential SQL injection: avoid concatenating untrusted input into SQL queries."
+    patterns:
+      - pattern: $DB.query($QUERY)
+      - metavariable-pattern:
+          metavariable: $QUERY
+          patterns:
+            - pattern: $LEFT + $RIGHT
+
+
+  - id: python-path-traversal
+    mode: taint
+    languages:
+      - python
+    severity: ERROR
+    message: "Potential path traversal: user-controlled input reaches a file access operation."
+    pattern-sources:
+      - pattern: request.args.get(...)
+      - pattern: request.form.get(...)
+    pattern-sinks:
+      - pattern: open(...)
+      - pattern: pathlib.Path(...).read_text(...)
+      - pattern: pathlib.Path(...).read_bytes(...)
+
+  - id: javascript-path-traversal
+    mode: taint
+    languages:
+      - javascript
+    severity: ERROR
+    message: "Potential path traversal: user-controlled input reaches a file access operation."
+    pattern-sources:
+      - pattern: req.query.$KEY
+      - pattern: req.params.$KEY
+    pattern-sinks:
+      - pattern: fs.readFile(...)
+      - pattern: fs.readFileSync(...)
+      - pattern: fs.createReadStream(...)
+
+  - id: hardcoded-credential-format
+    languages:
+      - python
+      - javascript
+    severity: ERROR
+    message: "Possible hardcoded GitHub token or Google API key detected."
+    patterns:
+      - pattern-either:
+          - pattern: $KEY = "$VALUE"
+          - pattern: $KEY = '$VALUE'
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: '(gh[pousr]_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,})'

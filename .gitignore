@@ -1,0 +1,30 @@
+# Node
+node_modules/
+dist/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Uploaded files
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+build/
