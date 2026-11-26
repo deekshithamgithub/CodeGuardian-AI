@@ -408,7 +408,9 @@ const renderIssues = (issues, category) => {
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6">
       <div className="mx-auto max-w-7xl">
-        <h1 className="text-3xl font-bold">New Code Scan</h1>
+       <h1 className="mb-4 text-3xl font-bold text-blue-500">
+  New Code Scan
+</h1>
         <Link
           to="/dashboard"
           className="mb-6 inline-block rounded-lg border border-slate-700 px-4 py-2 text-blue-400 hover:bg-slate-800"
