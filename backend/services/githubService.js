@@ -52,11 +52,13 @@ export const getRepositoryInfo = async (owner, repo) => {
   }
 };
 
+
 export const getRepositoryBranches = async (owner, repo) => {
   try {
     const encoded = encodeRepoParts(owner, repo);
+
     const response = await axios.get(
-      `${GITHUB_API}/repos/${encoded.owner}/${encoded.repo}`,
+      `${GITHUB_API}/repos/${encoded.owner}/${encoded.repo}/branches`,
       {
         headers: {
           Accept: "application/vnd.github+json",
@@ -73,6 +75,11 @@ export const getRepositoryBranches = async (owner, repo) => {
       commitSha: branch.commit.sha,
     }));
   } catch (error) {
+    console.error(
+      "GitHub branches API error:",
+      error.response?.data || error.message
+    );
+
     if (error.response?.status === 404) {
       throw new Error("Repository or branches not found.");
     }
@@ -86,11 +93,18 @@ export const getRepositoryBranches = async (owner, repo) => {
 };
 
 
+
+
 export const getRepositoryFiles = async (owner, repo, branch) => {
   try {
     const encoded = encodeRepoParts(owner, repo);
+
+    if (!branch) {
+      throw new Error("Please select a repository branch.");
+    }
+
     const response = await axios.get(
-      `${GITHUB_API}/repos/${encoded.owner}/${encoded.repo}`,
+      `${GITHUB_API}/repos/${encoded.owner}/${encoded.repo}/git/trees/${encodeURIComponent(branch)}`,
       {
         headers: {
           Accept: "application/vnd.github+json",
@@ -124,22 +138,25 @@ export const getRepositoryFiles = async (owner, repo, branch) => {
         size: item.size,
       }));
 
+    console.log("GitHub source files found:", files.length);
+
     return {
       files,
       truncated: response.data.truncated || false,
     };
   } catch (error) {
-    if (error.response?.status === 404) {
-      throw new Error("Repository or branch not found.");
-    }
+    console.error(
+      "GitHub files API error:",
+      error.response?.data || error.message
+    );
 
-    if (error.response?.status === 403) {
-      throw new Error("GitHub API rate limit exceeded. Try again later.");
-    }
-
-    throw new Error("Unable to fetch repository files.");
+    throw new Error(
+      error.message || "Unable to fetch repository files."
+    );
   }
 };
+
+
 
 
 export const getRepositoryFileContent = async (
@@ -149,13 +166,15 @@ export const getRepositoryFileContent = async (
   filePath
 ) => {
   try {
+    const encoded = encodeRepoParts(owner, repo);
+
     const encodedPath = filePath
       .split("/")
       .map((part) => encodeURIComponent(part))
       .join("/");
-    const encoded = encodeRepoParts(owner, repo);
+
     const response = await axios.get(
-      `${GITHUB_API}/repos/${encoded.owner}/${encoded.repo}`,
+      `${GITHUB_API}/repos/${encoded.owner}/${encoded.repo}/contents/${encodedPath}`,
       {
         headers: {
           Accept: "application/vnd.github+json",
@@ -176,16 +195,16 @@ export const getRepositoryFileContent = async (
     }
 
     if (
-  response.data.encoding !== "base64" ||
-  typeof response.data.content !== "string"
-) {
-  throw new Error("GitHub returned unsupported file content.");
-}
+      response.data.encoding !== "base64" ||
+      typeof response.data.content !== "string"
+    ) {
+      throw new Error("GitHub returned unsupported file content.");
+    }
 
-const content = Buffer.from(
-  response.data.content.replace(/\s/g, ""),
-  "base64"
-).toString("utf8");
+    const content = Buffer.from(
+      response.data.content.replace(/\s/g, ""),
+      "base64"
+    ).toString("utf8");
 
     return {
       path: response.data.path,
@@ -193,12 +212,20 @@ const content = Buffer.from(
       size: response.data.size,
     };
   } catch (error) {
+    console.error(
+      "GitHub file content error:",
+      error.response?.data || error.message
+    );
+
     if (error.response?.status === 404) {
       throw new Error("The requested file was not found.");
     }
 
-    if (error.message.includes("too large") ||
-        error.message.includes("not a file")) {
+    if (
+      error.message.includes("too large") ||
+      error.message.includes("not a file") ||
+      error.message.includes("unsupported")
+    ) {
       throw error;
     }
 
