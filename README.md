@@ -62,6 +62,26 @@ CodeGuardian-AI/
 └── README.md
 ```
 
+## 📸 Project Screenshots
+
+### 1. Dashboard
+![Dashboard](./screenshots/dashboard.png)
+
+### 2. Code Scanning
+![Code Scanning](./screenshots/code-scanning.png)
+
+### 3. Analysis Results
+![Analysis Results](./screenshots/analysis-results.png)
+
+### 4. AI Code Fix
+![AI Code Fix](./screenshots/ai-code-fix.png)
+
+### 5. GitHub Scanner
+![GitHub Scanner](./screenshots/github-scanner.png)
+
+### 6. Scan Comparison
+![Scan Comparison](./screenshots/scan-comparison.png)
+
 ## Local Setup
 
 ### Prerequisites
