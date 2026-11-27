@@ -377,24 +377,58 @@ STRICT SECURITY RULES:
             prompt=prompt,
             model=model,
             timeout=180,
-            max_tokens=500,
+            max_tokens=800,
             num_ctx=2048
         )
 
         if not result:
             return {"error": "AI returned an empty explanation."}
 
+        # required_sections = [
+        #     "1. Problem",
+        #     "2. Cause",
+        #     "3. Security Impact",
+        #     "4. Recommended Fix"
+        # ]
+
+        # missing_sections = [
+        #     section
+        #     for section in required_sections
+        #     if section.lower() not in result.lower()
+        # ]
+
+        # if missing_sections:
+        #     print(
+        #         "Explanation is missing required sections:",
+        #         missing_sections
+        #     )
+        #     return {
+        #         "error": (
+        #             "AI explanation format is incomplete. "
+        #             "Please try again."
+        #         )
+        #     }
+
+        # # Return the explanation without requiring a corrected code block.
+        # return {"explanation": result}
+                # Normalize Markdown formatting before validating headings.
+        normalized_result = re.sub(
+            r"[^a-z]+",
+            " ",
+            result.lower()
+        )
+
         required_sections = [
-            "1. Problem",
-            "2. Cause",
-            "3. Security Impact",
-            "4. Recommended Fix"
+            "problem",
+            "cause",
+            "security impact",
+            "recommended fix"
         ]
 
         missing_sections = [
             section
             for section in required_sections
-            if section.lower() not in result.lower()
+            if section not in normalized_result
         ]
 
         if missing_sections:
@@ -402,6 +436,7 @@ STRICT SECURITY RULES:
                 "Explanation is missing required sections:",
                 missing_sections
             )
+
             return {
                 "error": (
                     "AI explanation format is incomplete. "
@@ -409,9 +444,7 @@ STRICT SECURITY RULES:
                 )
             }
 
-        # Return the explanation without requiring a corrected code block.
         return {"explanation": result}
-
     except requests.exceptions.Timeout:
         print("AI explanation request timed out.")
         return {
