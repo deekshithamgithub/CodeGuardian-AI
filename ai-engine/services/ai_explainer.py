@@ -7,9 +7,97 @@ import tokenize
 import requests
 
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
-EXPLAIN_MODEL = os.getenv("OLLAMA_EXPLAIN_MODEL", "qwen2.5:1.5b")
+AI_PROVIDER = os.getenv("AI_PROVIDER", "ollama").lower()
 
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+GROQ_EXPLAIN_MODEL = os.getenv(
+    "GROQ_EXPLAIN_MODEL",
+    "openai/gpt-oss-20b"
+)
+
+GROQ_FIX_MODEL = os.getenv(
+    "GROQ_FIX_MODEL",
+    "openai/gpt-oss-20b"
+)
+
+OLLAMA_URL = os.getenv(
+    "OLLAMA_URL",
+    "http://localhost:11434"
+).rstrip("/")
+
+EXPLAIN_MODEL = os.getenv(
+    "OLLAMA_EXPLAIN_MODEL",
+    "qwen2.5:1.5b"
+)
+
+OLLAMA_FIX_MODEL = os.getenv(
+    "OLLAMA_FIX_MODEL",
+    "qwen2.5-coder:7b"
+)
+def generate_ai_response(prompt, model, timeout, max_tokens, num_ctx=None):
+    """
+    Generate AI responses using either Ollama or Groq.
+    """
+
+    if AI_PROVIDER == "groq":
+
+        if not GROQ_API_KEY:
+            raise RuntimeError("GROQ_API_KEY is not configured.")
+
+        response = requests.post(
+            GROQ_URL,
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "temperature": 0.1,
+                "max_tokens": max_tokens
+            },
+            timeout=timeout
+        )
+
+        response.raise_for_status()
+
+        return response.json()["choices"][0]["message"]["content"].strip()
+
+    elif AI_PROVIDER == "ollama":
+
+        options = {
+            "temperature": 0.1,
+            "num_predict": max_tokens
+        }
+
+        if num_ctx:
+            options["num_ctx"] = num_ctx
+
+        response = requests.post(
+            f"{OLLAMA_URL}/api/generate",
+            json={
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "keep_alive": "10m",
+                "options": options
+            },
+            timeout=timeout
+        )
+
+        response.raise_for_status()
+
+        return response.json().get("response", "").strip()
+
+    else:
+        raise ValueError(f"Unsupported AI provider: {AI_PROVIDER}")
 
 def validate_secret_removal(original_code, corrected_response, issue):
     """
@@ -64,18 +152,29 @@ def validate_secret_removal(original_code, corrected_response, issue):
             if function_name not in logging_functions:
                 continue
 
+            # for argument in node.args:
+            #     # Reject direct logging of sensitive variables.
+            #     if isinstance(argument, ast.Name):
+            #         if argument.id.lower() in sensitive_names:
+            #             print("Validation failed: sensitive variable logged.")
+            #             return False
+
+            #     elif isinstance(argument, ast.Attribute):
+            #         if argument.attr.lower() in sensitive_names:
+            #             print("Validation failed: sensitive attribute logged.")
+            #             return False
             for argument in node.args:
-                # Reject direct logging of sensitive variables.
-                if isinstance(argument, ast.Name):
-                    if argument.id.lower() in sensitive_names:
-                        print("Validation failed: sensitive variable logged.")
-                        return False
+                for part in ast.walk(argument):
 
-                elif isinstance(argument, ast.Attribute):
-                    if argument.attr.lower() in sensitive_names:
-                        print("Validation failed: sensitive attribute logged.")
-                        return False
+                    if isinstance(part, ast.Name):
+                        if part.id.lower() in sensitive_names:
+                            print("Validation failed: sensitive variable logged.")
+                            return False
 
+                    elif isinstance(part, ast.Attribute):
+                        if part.attr.lower() in sensitive_names:
+                            print("Validation failed: sensitive attribute logged.")
+                            return False
     except SyntaxError:
         # JavaScript logging check.
         js_code = re.sub(
@@ -275,27 +374,40 @@ STRICT SECURITY RULES:
 - Do not omit the corrected code.
 """
 
+    # def call_ollama(request_prompt):
+    #     response = requests.post(
+    #         f"{OLLAMA_URL}/api/generate",
+    #         json={
+    #             "model": EXPLAIN_MODEL,
+    #             "prompt": request_prompt,
+    #             "stream": False,
+    #             "keep_alive": "10m",
+    #             "options": {
+    #                 "temperature": 0.1,
+    #                 "num_predict": 500,
+    #                 "num_ctx": 2048
+    #             }
+    #         },
+    #         timeout=180
+    #     )
+
+    #     response.raise_for_status()
+
+    #     return response.json().get("response", "").strip()
     def call_ollama(request_prompt):
-        response = requests.post(
-            f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": EXPLAIN_MODEL,
-                "prompt": request_prompt,
-                "stream": False,
-                "keep_alive": "10m",
-                "options": {
-                    "temperature": 0.1,
-                    "num_predict": 500,
-                    "num_ctx": 2048
-                }
-            },
-            timeout=180
+        model = (
+            GROQ_EXPLAIN_MODEL
+            if AI_PROVIDER == "groq"
+            else EXPLAIN_MODEL
         )
 
-        response.raise_for_status()
-
-        return response.json().get("response", "").strip()
-
+        return generate_ai_response(
+            prompt=request_prompt,
+            model=model,
+            timeout=180,
+            max_tokens=500,
+            num_ctx=2048
+        )
     required_sections = [
         "1. Problem",
         "2. Cause",
@@ -397,14 +509,28 @@ SECURITY AND CORRECTNESS RULES:
 4. Never simply move a vulnerability to another line.
 5. Never introduce hardcoded passwords, API keys,
    tokens, credentials, or fallback secrets.
+# 6. For hardcoded credentials:
+#    - Remove the hardcoded credential completely.
+#    - Never repeat the same secret in a condition,
+#      variable, comment, or fallback value.
+#    - Use environment-based configuration or an
+#      appropriate secure credential-management approach.
+#    - For password authentication, prefer secure
+#      password-hash verification when the context supports it.
 6. For hardcoded credentials:
-   - Remove the hardcoded credential completely.
-   - Never repeat the same secret in a condition,
-     variable, comment, or fallback value.
-   - Use environment-based configuration or an
-     appropriate secure credential-management approach.
-   - For password authentication, prefer secure
-     password-hash verification when the context supports it.
+    - Identify the exact original credential value.
+    - Remove that value completely from the corrected source code.
+    - Never use the original credential in comparisons,
+      conditions, assignments, comments, logs, or strings.
+    - Never replace the hardcoded assignment while retaining
+      the same secret elsewhere in the program.
+    - Use environment variables without fallback credentials.
+    - Preserve authentication functionality without exposing
+      or reproducing the original secret.
+    - Before returning, search the entire corrected source code
+      for the original credential value.
+    - If the original credential remains anywhere, regenerate
+      the solution.
 7. STRICT ENVIRONMENT VARIABLE RULES:
    - When using os.getenv(), NEVER provide a default value.
    - Correct: password = os.getenv("LOGIN_PASSWORD")
@@ -445,31 +571,43 @@ Return only the complete corrected source code.
 """
 
     try:
-        response = requests.post(
-            f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": os.getenv(
-                    "OLLAMA_FIX_MODEL",
-                    "qwen2.5-coder:7b"
-                ),
-                "prompt": prompt,
-                "stream": False,
-                "keep_alive": "10m",
-                "options": {
-                    "num_predict": 1800,
-                    "num_ctx": 4096,
-                    "temperature": 0.1
-                }
-            },
-            timeout=300
+        # response = requests.post(
+        #     f"{OLLAMA_URL}/api/generate",
+        #     json={
+        #         "model": os.getenv(
+        #             "OLLAMA_FIX_MODEL",
+        #             "qwen2.5-coder:7b"
+        #         ),
+        #         "prompt": prompt,
+        #         "stream": False,
+        #         "keep_alive": "10m",
+        #         "options": {
+        #             "num_predict": 1800,
+        #             "num_ctx": 4096,
+        #             "temperature": 0.1
+        #         }
+        #     },
+        #     timeout=300
+        # )
+
+        # response.raise_for_status()
+
+        # result = response.json().get(
+        #     "response", ""
+        # ).strip()
+        model = (
+            GROQ_FIX_MODEL
+            if AI_PROVIDER == "groq"
+            else OLLAMA_FIX_MODEL
         )
 
-        response.raise_for_status()
-
-        result = response.json().get(
-            "response", ""
-        ).strip()
-
+        result = generate_ai_response(
+            prompt=prompt,
+            model=model,
+            timeout=300,
+            max_tokens=1800,
+            num_ctx=4096
+        )
         if not result:
             return None
 
@@ -518,20 +656,33 @@ Return only the complete corrected source code.
         #         return None
 
 # Validate hardcoded-password findings.
+        # if "hardcoded" in issue_message.lower() and "password" in issue_message.lower():
+        #     original_passwords = re.findall(
+        #         r"""(?im)^\s*[A-Za-z_]\w*password\w*\s*=\s*["']([^"']+)["']""",
+        #         code
+        #     )
+
+        #     for original_secret in original_passwords:
+        #         if original_secret in result:
+        #             print(
+        #                 "Rejected AI fix: original hardcoded "
+        #                 "password is still present."
+        #             )
+        #             return None
         if "hardcoded" in issue_message.lower() and "password" in issue_message.lower():
+
             original_passwords = re.findall(
-                r"""(?im)^\s*[A-Za-z_]\w*password\w*\s*=\s*["']([^"']+)["']""",
+                r"""(?im)^\s*[A-Za-z_]\w*\s*=\s*["']([^"']+)["']""",
                 code
             )
 
             for original_secret in original_passwords:
-                if original_secret in result:
+                if original_secret and original_secret in result:
                     print(
                         "Rejected AI fix: original hardcoded "
                         "password is still present."
                     )
                     return None
-
         return result
 
     except requests.Timeout:
@@ -540,4 +691,7 @@ Return only the complete corrected source code.
 
     except requests.RequestException as error:
         print("Ollama fix generation failed:", error)
+        return None
+    except Exception as error:
+        print("AI fix generation failed:", str(error))
         return None
