@@ -221,6 +221,36 @@ const GitHubScanner = () => {
     }
   };
 
+  // const explainIssue = async (issue, index, category) => {
+  //   const issueKey = `${category}-${index}`;
+
+  //   try {
+  //     setExplainingIssue(issueKey);
+
+  //     const response = await API.post("/explanations", {
+  //       code: fileContent,
+  //       issue,
+  //     });
+
+  //     if (response.data.success) {
+  //       setExplanations((previous) => ({
+  //         ...previous,
+  //         [issueKey]: response.data,
+  //       }));
+
+  //       toast.success("AI explanation generated!");
+  //     } else {
+  //       toast.error("Unable to generate explanation");
+  //     }
+  //   } catch (error) {
+  //     toast.error(
+  //       error.response?.data?.message || "Explanation generation failed",
+  //     );
+  //   } finally {
+  //     setExplainingIssue(null);
+  //   }
+  // };
+
   const explainIssue = async (issue, index, category) => {
     const issueKey = `${category}-${index}`;
 
@@ -232,19 +262,43 @@ const GitHubScanner = () => {
         issue,
       });
 
-      if (response.data.success) {
-        setExplanations((previous) => ({
-          ...previous,
-          [issueKey]: response.data,
-        }));
+      const data = response.data;
 
-        toast.success("AI explanation generated!");
-      } else {
-        toast.error("Unable to generate explanation");
+      // Extract the actual explanation string.
+      const explanationText =
+        typeof data?.explanation === "string"
+          ? data.explanation
+          : typeof data?.explanation?.explanation === "string"
+            ? data.explanation.explanation
+            : typeof data?.data?.explanation === "string"
+              ? data.data.explanation
+              : null;
+
+      if (!explanationText) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            "AI explanation was not returned correctly.",
+        );
       }
+
+      // Store only a string, never the complete response object.
+      setExplanations((previous) => ({
+        ...previous,
+        [issueKey]: explanationText,
+      }));
+
+      toast.success("AI explanation generated!");
     } catch (error) {
+      console.error(
+        "GitHub AI explanation error:",
+        error.response?.data || error,
+      );
+
       toast.error(
-        error.response?.data?.message || "Explanation generation failed",
+        error.response?.data?.message ||
+          error.message ||
+          "Explanation generation failed.",
       );
     } finally {
       setExplainingIssue(null);
@@ -291,11 +345,11 @@ const GitHubScanner = () => {
           Analyze source code directly from public GitHub repositories.
         </p>
         <button
-  onClick={() => navigate("/dashboard")}
-  className="border border-slate-700 bg-transparent text-blue-400 px-5 py-3 rounded-xl hover:bg-slate-800 transition-colors"
->
-  ← Back to Dashboard
-</button>
+          onClick={() => navigate("/dashboard")}
+          className="border border-slate-700 bg-transparent text-blue-400 px-5 py-3 rounded-xl hover:bg-slate-800 transition-colors"
+        >
+          ← Back to Dashboard
+        </button>
         <div className="mt-8 rounded-xl border border-slate-700 bg-slate-900 p-6">
           <label className="mb-2 block font-semibold">
             GitHub Repository URL
@@ -530,7 +584,7 @@ const GitHubScanner = () => {
                                   : "Explain with AI"}
                               </button>
 
-                              {explanations[`${section.title}-${index}`] && (
+                              {/* {explanations[`${section.title}-${index}`] && (
                                 <div className="mt-4 rounded-lg border border-purple-700 bg-purple-950/30 p-4">
                                   <h5 className="mb-2 font-bold text-purple-300">
                                     AI Explanation
@@ -549,6 +603,20 @@ const GitHubScanner = () => {
                                         2,
                                       )}
                                   </p>
+                                </div>
+                              )} */}
+
+                              {typeof explanations[
+                                `${section.title}-${index}`
+                              ] === "string" && (
+                                <div className="mt-4 rounded-lg border border-purple-700 bg-purple-950/30 p-4">
+                                  <h5 className="mb-2 font-bold text-purple-300">
+                                    AI Explanation
+                                  </h5>
+
+                                  <div className="whitespace-pre-wrap text-sm text-slate-200">
+                                    {explanations[`${section.title}-${index}`]}
+                                  </div>
                                 </div>
                               )}
                             </div>
