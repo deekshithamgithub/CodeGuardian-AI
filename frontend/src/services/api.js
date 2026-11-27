@@ -1,12 +1,22 @@
 
+// import axios from "axios";
+
+// const API = axios.create({
+//   baseURL: "http://localhost:5000/api",
+//   headers: {
+//     "Content-Type": "application/json",
+//   },
+// });
+
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:5000/api",
-  headers: {
-    "Content-Type": "application/json",
-  },
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  withCredentials: true,
 });
+
+// export default api;
+
 
 // Attach JWT token to requests when available
 API.interceptors.request.use((config) => {
