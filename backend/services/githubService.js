@@ -68,9 +68,10 @@ export const getRepositoryBranches = async (owner, repo) => {
     const response = await axios.get(
       `${GITHUB_API}/repos/${encoded.owner}/${encoded.repo}/branches`,
       {
-        headers: {
-          Accept: "application/vnd.github+json",
-        },
+        // headers: {
+        //   Accept: "application/vnd.github+json",
+        // },
+        headers: getGitHubHeaders(),
         params: {
           per_page: 100,
         },
@@ -114,9 +115,10 @@ export const getRepositoryFiles = async (owner, repo, branch) => {
     const response = await axios.get(
       `${GITHUB_API}/repos/${encoded.owner}/${encoded.repo}/git/trees/${encodeURIComponent(branch)}`,
       {
-        headers: {
-          Accept: "application/vnd.github+json",
-        },
+        // headers: {
+        //   Accept: "application/vnd.github+json",
+        // },
+        headers: getGitHubHeaders(),
         params: {
           recursive: 1,
         },
@@ -184,9 +186,10 @@ export const getRepositoryFileContent = async (
     const response = await axios.get(
       `${GITHUB_API}/repos/${encoded.owner}/${encoded.repo}/contents/${encodedPath}`,
       {
-        headers: {
-          Accept: "application/vnd.github+json",
-        },
+        // headers: {
+        //   Accept: "application/vnd.github+json",
+        // },
+        headers: getGitHubHeaders(),
         params: {
           ref: branch,
         },
