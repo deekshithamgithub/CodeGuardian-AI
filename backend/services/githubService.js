@@ -2,6 +2,13 @@
 import axios from "axios";
 
 const GITHUB_API = "https://api.github.com";
+const getGitHubHeaders = () => ({
+  Accept: "application/vnd.github+json",
+  "X-GitHub-Api-Version": "2022-11-28",
+  ...(process.env.GITHUB_TOKEN
+    ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
+    : {}),
+});
 const encodeRepoParts = (owner, repo) => {
   if (
     typeof owner !== "string" ||
@@ -24,9 +31,10 @@ export const getRepositoryInfo = async (owner, repo) => {
     const response = await axios.get(
       `${GITHUB_API}/repos/${encoded.owner}/${encoded.repo}`,
       {
-        headers: {
-          Accept: "application/vnd.github+json",
-        },
+        // headers: {
+        //   Accept: "application/vnd.github+json",
+        // },
+        headers: getGitHubHeaders(),
         timeout: 15000,
       }
     );
